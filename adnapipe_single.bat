@@ -57,7 +57,7 @@ IF EXIST "%INDNAME%" (
   mkdir %INDNAME%
   )
   IF ERRORLEVEL == 1 (
-  rmdir /S %INDNAME%
+  rmdir /S /Q %INDNAME%
   mkdir %INDNAME%
   ) 
 ) ELSE (
