@@ -5,7 +5,7 @@ Usage:
 # Single ended
 adnapipe_single fastq threads Population name Individual name
 
-Example: adnapipe_single ERR2744350.fastq.gz 8 Isreal I1165
+Example: adnapipe_single ERR2744350.fastq.gz 8 Israel I1165
 # Paired
 
 The program downloads hs37d5.fa if it does not exist in the main directory. The program will also create bwa index of hs37d5.fa if it is missing.
