@@ -37,7 +37,7 @@ echo Creating an index
 cygbin\bwa.exe index hs37d5.fa
 )
 echo .
-goto END)
+)
 
 set FASTQ1=%1
 set FASTQ2=%2
