@@ -14,8 +14,8 @@ CHOICE /C YN /M "Y/N"
 IF ERRORLEVEL == 2  GOTO END
 IF ERRORLEVEL == 1 (
 echo Downloading and uncompressing
-bin\curl.exe -O ftp://ftp.1000genomes.ebi.ac.uk/vol1/ftp/technical/reference/phase2_reference_assembly_sequence/hs37d5.fa.gz
-bin\bgzip -d hs37d5.fa.gz
+bin\curl.exe --insecure -O https://ftp.1000genomes.ebi.ac.uk/vol1/ftp/technical/reference/phase2_reference_assembly_sequence/hs37d5.fa.gz
+bin\bgzip -d -@%THREADS% hs37d5.fa.gz
 )
 echo .
 goto END)
@@ -37,7 +37,7 @@ echo Creating an index
 cygbin\bwa.exe index hs37d5.fa
 )
 echo .
-goto END)
+)
 
 set FASTQ=%1
 set THREADS=%2
