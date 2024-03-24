@@ -74,23 +74,21 @@ set FASTQTWO=%CD%\%FASTQ2%
 )
 
 echo .
-echo Removing adapters
+echo Preprocessing and removing adapters
 echo .
 
 cd %INDNAME%
-..\cygbin\AdapterRemoval --file1 %FASTQONE% --file2 %FASTQTWO% --basename %INDNAME% --gzip --threads 2 --qualitymax 41 --collapse --preserve5p --trimns --trimqualities --adapter1 AGATCGGAAGAGCACACGTCTGAACTCCAGTCAC --adapter2 AGATCGGAAGAGCGTCGTGTAGGGAAAGAGTGTA --minlength 30 --minquality 20 --minadapteroverlap 1
-..\cygbin\cat *.collapsed.gz > %INDNAME%_L0.pe.combined.tmp.fq.gz
-cd ..
-bin\jre\bin\java.exe -Xmx4g -jar bin\AdapterRemovalFixPrefix-0.0.5.jar %INDNAME%\%INDNAME%_L0.pe.combined.tmp.fq.gz > %INDNAME%\%INDNAME%_L0.pe.combined.fq
-bin\pigz -p 2 %INDNAME%\%INDNAME%_L0.pe.combined.fq
+REM ..\cygbin\AdapterRemoval --file1 %FASTQONE% --file2 %FASTQTWO% --basename %INDNAME% --gzip --threads 2 --qualitymax 41 --collapse --preserve5p --trimns --trimqualities --adapter1 AGATCGGAAGAGCACACGTCTGAACTCCAGTCAC --adapter2 AGATCGGAAGAGCGTCGTGTAGGGAAAGAGTGTA --minlength 30 --minquality 20 --minadapteroverlap 1
+..\bin\fastp --in1 %FASTQONE% --in2 %FASTQTWO% --out1 %INDNAME%.fastp.fastq.gz --out2 %INDNAME%.fastp.fastq.gz --json %INDNAME%.fastp.json --html %INDNAME%.fastp.html -m --merged_out %INDNAME%.merged.fastq.gz --thread 4 --detect_adapter_for_pe --include_unmerged --length_required 25
+cd..
 
 echo .
 echo Aligning
 echo .
 
 
-cygbin\bwa aln -t %THREADS% hs37d5.fa %INDNAME%\%INDNAME%_L0.pe.combined.fq.gz -n 0.01 -l 1024 -k 2 > %INDNAME%\%INDNAME%.sai
-cygbin\bwa samse -r "@RG\tID:ILLUMINA-%INDNAME%\tSM:%INDNAME%\tPL:illumina\tPU:ILLUMINA-%INDNAME%-PE" hs37d5.fa %INDNAME%\%INDNAME%.sai %INDNAME%\%INDNAME%_L0.pe.combined.fq.gz | bin\samtools sort -@ %THREADS% -O bam - > %INDNAME%\%INDNAME%_PE.mapped.bam
+cygbin\bwa aln -t %THREADS% hs37d5.fa %INDNAME%\%INDNAME%.merged.fastq.gz -n 0.01 -l 1024 -k 2 > %INDNAME%\%INDNAME%.sai
+cygbin\bwa samse -r "@RG\tID:ILLUMINA-%INDNAME%\tSM:%INDNAME%\tPL:illumina\tPU:ILLUMINA-%INDNAME%-PE" hs37d5.fa %INDNAME%\%INDNAME%.sai %INDNAME%\%INDNAME%.merged.fastq.gz | bin\samtools sort --no-PG -@ %THREADS% -O bam - > %INDNAME%\%INDNAME%_PE.mapped.bam
 bin\samtools index -@ %THREADS% %INDNAME%\%INDNAME%_PE.mapped.bam
 
 echo .
@@ -98,47 +96,28 @@ echo Dedupping
 echo .
 
 move %INDNAME%\%INDNAME%_PE.mapped.bam %INDNAME%\%INDNAME%.bam
-bin\jre\bin\java.exe -Xmx4g -jar bin\DeDup-0.12.8.jar -i %INDNAME%\%INDNAME%.bam  -o %INDNAME% -u 
-mv %INDNAME%\%INDNAME%.log %INDNAME%\%INDNAME%_dedup.log
-bin\samtools sort -@ %THREADS% %INDNAME%\%INDNAME%_rmdup.bam -o %INDNAME%\%INDNAME%_rmdup.bam
+bin\jre\bin\java.exe -Xmx4g -jar bin\picard\picard.jar MarkDuplicates INPUT=%INDNAME%\%INDNAME%.bam OUTPUT=%INDNAME%\%INDNAME%_rmdup.bam REMOVE_DUPLICATES=TRUE AS=TRUE METRICS_FILE=%INDNAME%\%INDNAME%_rmdup.metrics VALIDATION_STRINGENCY=SILENT
 bin\samtools index -@ %THREADS% %INDNAME%\%INDNAME%_rmdup.bam
 
 echo .
 echo Damage profiling
 echo .
 
-bin\jre\bin\java.exe -Xmx4g -jar bin\DamageProfiler-0.4.9.jar -i %INDNAME%\%INDNAME%_rmdup.bam -r hs37d5.fa -l 100 -t 15 -o . -yaxis_damageplot 0.30
+rem bin\jre\bin\java.exe -Xmx4g -jar bin\DamageProfiler-0.4.9.jar -i %INDNAME%\%INDNAME%_rmdup.bam -r hs37d5.fa -l 100 -t 15 -o . -yaxis_damageplot 0.30
 
 echo .
 echo Trimming
 echo .
 
 cygbin\bam trimBam %INDNAME%\%INDNAME%_rmdup.bam %INDNAME%\tmp.bam -L 1 -R 1 
-bin\samtools sort -@ %THREADS% %INDNAME%\tmp.bam -o %INDNAME%\%INDNAME%.trimmed.bam 
+bin\samtools sort --no-PG -@ %THREADS% %INDNAME%\tmp.bam -o %INDNAME%\%INDNAME%.trimmed.bam 
 bin\samtools index -@ %THREADS% %INDNAME%\%INDNAME%.trimmed.bam
 
 echo .
 echo Genotyping
 echo .
 
-bin\samtools mpileup -B -q 30 -Q 30 -l v42.4.1240K.pos -f hs37d5.fa %INDNAME%\%INDNAME%.trimmed.bam | bin\pileupCaller --randomHaploid   --sampleNames %INDNAME% --samplePopName %POPNAME% -f v42.4.1240K.snp -e %INDNAME%\%INDNAME%
-
-echo .
-echo Converting to plink format
-echo .
-
-echo genotypename: %INDNAME%.geno.txt > %INDNAME%\convertf.txt
-echo snpname: %INDNAME%.snp.txt >> %INDNAME%\convertf.txt
-echo indivname: %INDNAME%.ind.txt >> %INDNAME%\convertf.txt
-echo outputformat: PACKEDPED >> %INDNAME%\convertf.txt
-echo genotypeoutname: %INDNAME%.bed >> %INDNAME%\convertf.txt
-echo snpoutname: %INDNAME%.bim >> %INDNAME%\convertf.txt
-echo indivoutname: %INDNAME%.fam >> %INDNAME%\convertf.txt
-echo outputall: YES >> %INDNAME%\convertf.txt
-
-cd %INDNAME%
-..\cygbin\convertf -p convertf.txt
-cd ..
+bin\samtools mpileup -B -q 30 -Q 30 -l v42.4.1240K.pos -f hs37d5.fa %INDNAME%\%INDNAME%.trimmed.bam | bin\pileupCaller --randomHaploid   --sampleNames %INDNAME% --samplePopName %POPNAME% -f v42.4.1240K.snp -p %INDNAME%\%INDNAME%
 
 echo .
 echo Done
