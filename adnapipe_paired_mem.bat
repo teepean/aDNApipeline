@@ -65,46 +65,43 @@ IF EXIST "%INDNAME%" (
   mkdir %INDNAME%
 )
 
-IF EXIST "%CD%\%FASTQ1%" (
-set FASTQONE=%CD%\%FASTQ1%
-set FASTQTWO=%CD%\%FASTQ2%
-) ELSE (
-  set FASTQONE=%FASTQ1%
-  set FASTQTWO=%FASTQ2%
-)
+if [ -e "$FASTQ1" ]; then
+  FASTQONE=$(realpath "$FASTQ1")
+  FASTQTWO=$(realpath "$FASTQ2")
+else
+  FASTQONE=$FASTQ1
+  FASTQTWO=$FASTQ2
+fi
 
-echo .
-echo Aligning
-echo .
+echo
+echo "Preprocessing and removing adapters"
+echo
 
-cygbin\bwa mem -t %THREADS% -k 19 -r 2.5 -R "@RG\tID:ILLUMINA-%INDNAME%\tSM:%INDNAME%\tPL:illumina\tPU:ILLUMINA-%INDNAME%-PE" hs37d5.fa %FASTQONE% %FASTQTWO% | bin\samtools sort -@ %THREADS% -m2G -O bam - > %INDNAME%\%INDNAME%_PE.mapped.bam
+cd "$INDNAME" || exit
+fastp --in1 "$FASTQONE" --in2 "$FASTQTWO" --out1 "${INDNAME}.fastp.fastq.gz" --out2 "${INDNAME}.fastp.fastq.gz" --json "${INDNAME}.fastp.json" --html "${INDNAME}.fastp.html" -m --merged_out "${INDNAME}.merged.fastq.gz" --thread 4 --detect_adapter_for_pe --include_unmerged --length_required 25
+cd ..
+
+echo
+echo "Aligning"
+echo
+
+cygbin\bwa mem -p -t %THREADS% -k 19 -r 2.5 -R "@RG\tID:ILLUMINA-%INDNAME%\tSM:%INDNAME%\tPL:illumina\tPU:ILLUMINA-%INDNAME%-PE" hs37d5.fa %INDNAME%\%INDNAME%.merged.fastq.gz | bin\samtools sort -@ %THREADS% -m2G -O bam - > %INDNAME%\%INDNAME%_PE.mapped.bam
 bin\samtools index -@ %THREADS% %INDNAME%\%INDNAME%_PE.mapped.bam
 bin\samtools view -b %INDNAME%\%INDNAME%_PE.mapped.bam Y > %INDNAME%\%INDNAME%_Y.bam
 bin\samtools index -@ %THREADS% %INDNAME%\%INDNAME%_Y.bam
 
+echo .
+echo Marking duplicates
+echo .
 
+move %INDNAME%\%INDNAME%_PE.mapped.bam %INDNAME%\%INDNAME%.bam
+bin\jre\bin\java.exe -Xmx4g -jar bin\picard\picard.jar MarkDuplicates INPUT=%INDNAME%\%INDNAME%.bam OUTPUT=%INDNAME%\%INDNAME%_rmdup.bam REMOVE_DUPLICATES=TRUE AS=TRUE METRICS_FILE=%INDNAME%\%INDNAME%_rmdup.metrics VALIDATION_STRINGENCY=SILENT
+bin\samtools index -@ %THREADS% %INDNAME%\%INDNAME%_rmdup.bam
 echo .
 echo Genotyping
 echo .
 
-bin\samtools mpileup -B -q 30 -Q 30 -l v42.4.1240K.pos -f hs37d5.fa %INDNAME%\%INDNAME%_PE.mapped.bam | bin\pileupCaller --randomHaploid   --sampleNames %INDNAME% --samplePopName %POPNAME% -f v42.4.1240K.snp -e %INDNAME%\%INDNAME%
-
-echo .
-echo Converting to plink format
-echo .
-
-echo genotypename: %INDNAME%.geno.txt > %INDNAME%\convertf.txt
-echo snpname: %INDNAME%.snp.txt >> %INDNAME%\convertf.txt
-echo indivname: %INDNAME%.ind.txt >> %INDNAME%\convertf.txt
-echo outputformat: PACKEDPED >> %INDNAME%\convertf.txt
-echo genotypeoutname: %INDNAME%.bed >> %INDNAME%\convertf.txt
-echo snpoutname: %INDNAME%.bim >> %INDNAME%\convertf.txt
-echo indivoutname: %INDNAME%.fam >> %INDNAME%\convertf.txt
-echo outputall: YES >> %INDNAME%\convertf.txt
-
-cd %INDNAME%
-..\cygbin\convertf -p convertf.txt
-cd ..
+bin\samtools mpileup -B -q 30 -Q 30 -l v42.4.1240K.pos -f hs37d5.fa %INDNAME%\%INDNAME%_rmdup.bam | bin\pileupCaller --randomHaploid   --sampleNames %INDNAME% --samplePopName %POPNAME% -f v42.4.1240K.snp -p %INDNAME%\%INDNAME%
 
 echo .
 echo Done

@@ -77,15 +77,19 @@ set FASTQ1=%CD%\%FASTQ%
 
 cd %INDNAME%
 
-..\cygbin\AdapterRemoval --file1 %FASTQ1% --basename %INDNAME% --gzip --threads 2 --qualitymax 41 --collapse --preserve5p --trimns --trimqualities --adapter1 AGATCGGAAGAGCACACGTCTGAACTCCAGTCAC --adapter2 AGATCGGAAGAGCGTCGTGTAGGGAAAGAGTGTA --minlength 30 --minquality 20 --minadapteroverlap 1
+echo Preprocessing and removing adapters
+..\bin\fastp --in1 %FASTQ1% --out1  %INDNAME%.fastp.fastq.gz --thread 4 --length_required 25 --json %INDNAME%.fastp.json --html %INDNAME%.fastp.html
+
+REM..\cygbin\AdapterRemoval --file1 %FASTQ1% --basename %INDNAME% --gzip --threads 2 --qualitymax 41 --collapse --preserve5p --trimns --trimqualities --adapter1 AGATCGGAAGAGCACACGTCTGAACTCCAGTCAC --adapter2 AGATCGGAAGAGCGTCGTGTAGGGAAAGAGTGTA --minlength 30 --minquality 20 --minadapteroverlap 1
+
 cd ..
 echo .
 echo Aligning
 echo .
 
 
-cygbin\bwa aln -t %THREADS% hs37d5.fa %INDNAME%\%INDNAME%.truncated.gz -n 0.01 -l 1024 -k 2 > %INDNAME%\%INDNAME%.sai
-cygbin\bwa samse -r "@RG\tID:ILLUMINA-%INDNAME%\tSM:%INDNAME%\tPL:illumina\tPU:ILLUMINA-%INDNAME%-SE" hs37d5.fa %INDNAME%\%INDNAME%.sai %INDNAME%\%INDNAME%.truncated.gz | bin\samtools sort -@ %THREADS% -O bam - > %INDNAME%\%INDNAME%_SE.mapped.bam
+cygbin\bwa aln -t %THREADS% hs37d5.fa %INDNAME%\%INDNAME%.fastp.fastq.gz -n 0.01 -l 1024 -k 2 > %INDNAME%\%INDNAME%.sai
+cygbin\bwa samse -r "@RG\tID:ILLUMINA-%INDNAME%\tSM:%INDNAME%\tPL:illumina\tPU:ILLUMINA-%INDNAME%-SE" hs37d5.fa %INDNAME%\%INDNAME%.sai %INDNAME%\%INDNAME%.fastp.fastq.gz | bin\samtools sort --no-PG -@ %THREADS% -O bam - > %INDNAME%\%INDNAME%_SE.mapped.bam
 bin\samtools index -@ %THREADS% %INDNAME%\%INDNAME%_SE.mapped.bam
 
 echo .
@@ -100,38 +104,22 @@ echo .
 echo Damage profiling
 echo .
 
-bin\jre\bin\java.exe -Xmx4g -jar bin\DamageProfiler-0.4.9.jar -i %INDNAME%\%INDNAME%_rmdup.bam -r hs37d5.fa -l 100 -t 15 -o . -yaxis_damageplot 0.30
+rem bin\jre\bin\java.exe -Xmx4g -jar bin\DamageProfiler-0.4.9.jar -i %INDNAME%\%INDNAME%_rmdup.bam -r hs37d5.fa -l 100 -t 15 -o . -yaxis_damageplot 0.30
 
 echo .
 echo Trimming
 echo .
 
 cygbin\bam trimBam %INDNAME%\%INDNAME%_rmdup.bam %INDNAME%\tmp.bam -L 1 -R 1 
-bin\samtools sort -@ %THREADS% %INDNAME%\tmp.bam -o %INDNAME%\%INDNAME%.trimmed.bam 
+bin\samtools sort --no-PG -@ %THREADS% %INDNAME%\tmp.bam -o %INDNAME%\%INDNAME%.trimmed.bam 
+del %INDNAME%\tmp.bam
 bin\samtools index -@ %THREADS% %INDNAME%\%INDNAME%.trimmed.bam
 
 echo .
 echo Genotyping
 echo .
 
-bin\samtools mpileup -B -q 30 -Q 30 -l v42.4.1240K.pos -f hs37d5.fa %INDNAME%\%INDNAME%.trimmed.bam | bin\pileupCaller --randomHaploid   --sampleNames %INDNAME% --samplePopName %POPNAME% -f v42.4.1240K.snp -e %INDNAME%\%INDNAME%
-
-echo .
-echo Converting to plink format
-echo .
-
-echo genotypename: %INDNAME%.geno.txt > %INDNAME%\convertf.txt
-echo snpname: %INDNAME%.snp.txt >> %INDNAME%\convertf.txt
-echo indivname: %INDNAME%.ind.txt >> %INDNAME%\convertf.txt
-echo outputformat: PACKEDPED >> %INDNAME%\convertf.txt
-echo genotypeoutname: %INDNAME%.bed >> %INDNAME%\convertf.txt
-echo snpoutname: %INDNAME%.bim >> %INDNAME%\convertf.txt
-echo indivoutname: %INDNAME%.fam >> %INDNAME%\convertf.txt
-echo outputall: YES >> %INDNAME%\convertf.txt
-
-cd %INDNAME%
-..\cygbin\convertf -p convertf.txt
-cd ..
+bin\samtools mpileup -B -q 30 -Q 30 -l v42.4.1240K.pos -f hs37d5.fa %INDNAME%\%INDNAME%.trimmed.bam | bin\pileupCaller --randomHaploid   --sampleNames %INDNAME% --samplePopName %POPNAME% -f v42.4.1240K.snp -p %INDNAME%\%INDNAME%
 
 echo .
 echo Done
