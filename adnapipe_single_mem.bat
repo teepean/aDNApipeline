@@ -64,18 +64,16 @@ IF EXIST "%INDNAME%" (
   mkdir %INDNAME%
 )
 
-
-echo .
-echo Removing adapters
-echo .
-
 IF EXIST "%CD%\%FASTQ%" (
 set FASTQ1=%CD%\%FASTQ%
 ) ELSE (
   set FASTQ1=%FASTQ%
 )
 
-cygbin\bwa mem -t %THREADS% -k 19 -r 2.5 -R "@RG\tID:ILLUMINA-%INDNAME%\tSM:%INDNAME%\tPL:illumina\tPU:ILLUMINA-%INDNAME%-SE" hs37d5.fa %FASTQ1% | bin\samtools sort -@ %THREADS% -m2G -O bam - > %INDNAME%\%INDNAME%_PE.mapped.bambin\samtools index -@ %THREADS% %INDNAME%\%INDNAME%_SE.mapped.bam
+echo Preprocessing and removing adapters
+bin\fastp --in1 %FASTQ1% --out1  %INDNAME%\%INDNAME%.fastp.fastq.gz --thread 4 --length_required 25 --json %INDNAME%\%INDNAME%.fastp.json --html %INDNAME%\%INDNAME%.fastp.html
+
+cygbin\bwa mem -t %THREADS% -k 19 -r 2.5 -R "@RG\tID:ILLUMINA-%INDNAME%\tSM:%INDNAME%\tPL:illumina\tPU:ILLUMINA-%INDNAME%-SE" hs37d5.fa %INDNAME%\%INDNAME%.fastp.fastq.gz | bin\samtools sort --no-PG -@ %THREADS% -m2G -O bam - > %INDNAME%\%INDNAME%_SE.mapped.bam
 bin\samtools index -@ %THREADS% %INDNAME%\%INDNAME%_SE.mapped.bam
 bin\samtools view -b %INDNAME%\%INDNAME%_SE.mapped.bam Y > %INDNAME%\%INDNAME%_Y.bam
 bin\samtools index -@ %THREADS% %INDNAME%\%INDNAME%_Y.bam
@@ -91,32 +89,16 @@ echo .
 echo Trimming
 echo .
 
-REM cygbin\bam trimBam %INDNAME%\%INDNAME%_rmdup.bam %INDNAME%\tmp.bam -L 1 -R 1 
-REM bin\samtools sort -@ %THREADS% %INDNAME%\tmp.bam -o %INDNAME%\%INDNAME%.trimmed.bam 
-REM bin\samtools index -@ %THREADS% %INDNAME%\%INDNAME%.trimmed.bam
+cygbin\bam trimBam %INDNAME%\%INDNAME%_rmdup.bam %INDNAME%\tmp.bam -L 1 -R 1 
+bin\samtools sort --no-PG -@ %THREADS% %INDNAME%\tmp.bam -o %INDNAME%\%INDNAME%.trimmed.bam 
+del %INDNAME%\tmp.bam
+bin\samtools index -@ %THREADS% %INDNAME%\%INDNAME%.trimmed.bam
 
 echo .
 echo Genotyping
 echo .
 
-REM bin\samtools mpileup -B -q 30 -Q 30 -l v42.4.1240K.pos -f hs37d5.fa %INDNAME%\%INDNAME%_rmdup.bam | bin\pileupCaller --randomHaploid   --sampleNames %INDNAME% --samplePopName %POPNAME% -f v42.4.1240K.snp -e %INDNAME%\%INDNAME%
-
-REM echo .
-REM echo Converting to plink format
-REM echo .
-
-REM echo genotypename: %INDNAME%.geno.txt > %INDNAME%\convertf.txt
-REM echo snpname: %INDNAME%.snp.txt >> %INDNAME%\convertf.txt
-REM echo indivname: %INDNAME%.ind.txt >> %INDNAME%\convertf.txt
-REM echo outputformat: PACKEDPED >> %INDNAME%\convertf.txt
-REM echo genotypeoutname: %INDNAME%.bed >> %INDNAME%\convertf.txt
-REM echo snpoutname: %INDNAME%.bim >> %INDNAME%\convertf.txt
-REM echo indivoutname: %INDNAME%.fam >> %INDNAME%\convertf.txt
-REM echo outputall: YES >> %INDNAME%\convertf.txt
-
-REM cd %INDNAME%
-REM ..\cygbin\convertf -p convertf.txt
-REM cd ..
+bin\samtools mpileup -B -q 30 -Q 30 -l v42.4.1240K.pos -f hs37d5.fa %INDNAME%\%INDNAME%.trimmed.bam | bin\pileupCaller --randomHaploid   --sampleNames %INDNAME% --samplePopName %POPNAME% -f v42.4.1240K.snp -p %INDNAME%\%INDNAME%
 
 echo .
 echo Done
@@ -129,5 +111,3 @@ echo  Syntax:
 echo     adnapipe_single ^<fastq1^> ^<threads^> ^<Population name^> ^<Individual name^>
 echo.
 :END
-
-
