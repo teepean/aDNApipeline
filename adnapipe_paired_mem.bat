@@ -65,29 +65,28 @@ IF EXIST "%INDNAME%" (
   mkdir %INDNAME%
 )
 
-if [ -e "$FASTQ1" ]; then
-  FASTQONE=$(realpath "$FASTQ1")
-  FASTQTWO=$(realpath "$FASTQ2")
-else
-  FASTQONE=$FASTQ1
-  FASTQTWO=$FASTQ2
-fi
+IF EXIST "%CD%\%FASTQ1%" (
+set FASTQONE=%CD%\%FASTQ1%
+set FASTQTWO=%CD%\%FASTQ2%
+) ELSE (
+  set FASTQONE=%FASTQ1%
+  set FASTQTWO=%FASTQ2%
+)
 
 echo
-echo "Preprocessing and removing adapters"
+echo Preprocessing and removing adapters
 echo
 
-cd "$INDNAME" || exit
-fastp --in1 "$FASTQONE" --in2 "$FASTQTWO" --out1 "${INDNAME}.fastp.fastq.gz" --out2 "${INDNAME}.fastp.fastq.gz" --json "${INDNAME}.fastp.json" --html "${INDNAME}.fastp.html" -m --merged_out "${INDNAME}.merged.fastq.gz" --thread 4 --detect_adapter_for_pe --include_unmerged --length_required 25
-cd ..
+bin\fastp --in1 %FASTQONE% --in2 %FASTQTWO% --out1 %INDNAME%\%INDNAME%.fastp.fastq.gz --out2 %INDNAME%\%INDNAME%.fastp.fastq.gz --json %INDNAME%\%INDNAME%.fastp.json --html %INDNAME%\%INDNAME%.fastp.html -m --merged_out %INDNAME%\%INDNAME%.merged.fastq.gz --thread 4 --detect_adapter_for_pe --include_unmerged --length_required 25
+
 
 echo
-echo "Aligning"
+echo Aligning
 echo
 
-cygbin\bwa mem -p -t %THREADS% -k 19 -r 2.5 -R "@RG\tID:ILLUMINA-%INDNAME%\tSM:%INDNAME%\tPL:illumina\tPU:ILLUMINA-%INDNAME%-PE" hs37d5.fa %INDNAME%\%INDNAME%.merged.fastq.gz | bin\samtools sort -@ %THREADS% -m2G -O bam - > %INDNAME%\%INDNAME%_PE.mapped.bam
+cygbin\bwa mem -p -t %THREADS% -k 19 -r 2.5 -R "@RG\tID:ILLUMINA-%INDNAME%\tSM:%INDNAME%\tPL:illumina\tPU:ILLUMINA-%INDNAME%-PE" hs37d5.fa %INDNAME%\%INDNAME%.merged.fastq.gz | bin\samtools sort --no-PG -@ %THREADS% -m2G -O bam - > %INDNAME%\%INDNAME%_PE.mapped.bam
 bin\samtools index -@ %THREADS% %INDNAME%\%INDNAME%_PE.mapped.bam
-bin\samtools view -b %INDNAME%\%INDNAME%_PE.mapped.bam Y > %INDNAME%\%INDNAME%_Y.bam
+bin\samtools view --no-PG -b %INDNAME%\%INDNAME%_PE.mapped.bam Y > %INDNAME%\%INDNAME%_Y.bam
 bin\samtools index -@ %THREADS% %INDNAME%\%INDNAME%_Y.bam
 
 echo .
