@@ -75,20 +75,15 @@ set FASTQ1=%CD%\%FASTQ%
   set FASTQ1=%FASTQ%
 )
 
-cd %INDNAME%
-
 echo Preprocessing and removing adapters
-..\bin\fastp --in1 %FASTQ1% --out1  %INDNAME%.fastp.fastq.gz --thread 4 --length_required 25 --json %INDNAME%.fastp.json --html %INDNAME%.fastp.html
+bin\fastp -V -a AGATCGGAAGAGCACACGTCTGAACTCCAGTCAC --in1 %FASTQ1% --out1  %INDNAME%\%INDNAME%.fastp.fastq.gz --thread %THREADS% --length_required 25 --json %INDNAME%\%INDNAME%.fastp.json --html %INDNAME%\%INDNAME%.fastp.html
 
-REM..\cygbin\AdapterRemoval --file1 %FASTQ1% --basename %INDNAME% --gzip --threads 2 --qualitymax 41 --collapse --preserve5p --trimns --trimqualities --adapter1 AGATCGGAAGAGCACACGTCTGAACTCCAGTCAC --adapter2 AGATCGGAAGAGCGTCGTGTAGGGAAAGAGTGTA --minlength 30 --minquality 20 --minadapteroverlap 1
-
-cd ..
 echo .
 echo Aligning
 echo .
 
 
-cygbin\bwa aln -t %THREADS% hs37d5.fa %INDNAME%\%INDNAME%.fastp.fastq.gz -n 0.01 -l 1024 -k 2 > %INDNAME%\%INDNAME%.sai
+bwamsvc\bwa aln -t %THREADS% hs37d5.fa %INDNAME%\%INDNAME%.fastp.fastq.gz -n 0.01 -l 1024 -k 2 > %INDNAME%\%INDNAME%.sai
 cygbin\bwa samse -r "@RG\tID:ILLUMINA-%INDNAME%\tSM:%INDNAME%\tPL:illumina\tPU:ILLUMINA-%INDNAME%-SE" hs37d5.fa %INDNAME%\%INDNAME%.sai %INDNAME%\%INDNAME%.fastp.fastq.gz | bin\samtools sort --no-PG -@ %THREADS% -O bam - > %INDNAME%\%INDNAME%_SE.mapped.bam
 bin\samtools index -@ %THREADS% %INDNAME%\%INDNAME%_SE.mapped.bam
 
@@ -99,21 +94,6 @@ echo .
 move %INDNAME%\%INDNAME%_SE.mapped.bam %INDNAME%\%INDNAME%.bam
 bin\jre\bin\java.exe -Xmx4g -jar bin\picard\picard.jar MarkDuplicates INPUT=%INDNAME%\%INDNAME%.bam OUTPUT=%INDNAME%\%INDNAME%_rmdup.bam REMOVE_DUPLICATES=TRUE AS=TRUE METRICS_FILE=%INDNAME%\%INDNAME%_rmdup.metrics VALIDATION_STRINGENCY=SILENT
 bin\samtools index -@ %THREADS% %INDNAME%\%INDNAME%_rmdup.bam
-
-echo .
-echo Damage profiling
-echo .
-
-rem bin\jre\bin\java.exe -Xmx4g -jar bin\DamageProfiler-0.4.9.jar -i %INDNAME%\%INDNAME%_rmdup.bam -r hs37d5.fa -l 100 -t 15 -o . -yaxis_damageplot 0.30
-
-echo .
-echo Trimming
-echo .
-
-cygbin\bam trimBam %INDNAME%\%INDNAME%_rmdup.bam %INDNAME%\tmp.bam -L 1 -R 1 
-bin\samtools sort --no-PG -@ %THREADS% %INDNAME%\tmp.bam -o %INDNAME%\%INDNAME%.trimmed.bam 
-del %INDNAME%\tmp.bam
-bin\samtools index -@ %THREADS% %INDNAME%\%INDNAME%.trimmed.bam
 
 echo .
 echo Genotyping
