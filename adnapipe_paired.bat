@@ -77,17 +77,15 @@ echo .
 echo Preprocessing and removing adapters
 echo .
 
-cd %INDNAME%
-REM ..\cygbin\AdapterRemoval --file1 %FASTQONE% --file2 %FASTQTWO% --basename %INDNAME% --gzip --threads 2 --qualitymax 41 --collapse --preserve5p --trimns --trimqualities --adapter1 AGATCGGAAGAGCACACGTCTGAACTCCAGTCAC --adapter2 AGATCGGAAGAGCGTCGTGTAGGGAAAGAGTGTA --minlength 30 --minquality 20 --minadapteroverlap 1
-..\bin\fastp --in1 %FASTQONE% --in2 %FASTQTWO% --out1 %INDNAME%.fastp.fastq.gz --out2 %INDNAME%.fastp.fastq.gz --json %INDNAME%.fastp.json --html %INDNAME%.fastp.html -m --merged_out %INDNAME%.merged.fastq.gz --thread 4 --detect_adapter_for_pe --include_unmerged --length_required 25
-cd..
+bin\fastp -V -a AGATCGGAAGAGCACACGTCTGAACTCCAGTCAC --adapter_sequence_r2 AGATCGGAAGAGCGTCGTGTAGGGAAAGAGTGTA --in1 %FASTQONE% --in2 %FASTQTWO% --out1 %INDNAME%\%INDNAME%.fastp.fastq.gz --out2 %INDNAME%\%INDNAME%.fastp.fastq.gz --json %INDNAME%\%INDNAME%.fastp.json --html %INDNAME%\%INDNAME%.fastp.html -m --merged_out %INDNAME%\%INDNAME%.merged.fastq.gz --thread %THREADS% --include_unmerged --length_required 25
+
 
 echo .
 echo Aligning
 echo .
 
 
-cygbin\bwa aln -t %THREADS% hs37d5.fa %INDNAME%\%INDNAME%.merged.fastq.gz -n 0.01 -l 1024 -k 2 > %INDNAME%\%INDNAME%.sai
+bwamsvc\bwa aln -t %THREADS% hs37d5.fa %INDNAME%\%INDNAME%.merged.fastq.gz -n 0.01 -l 1024 -k 2 > %INDNAME%\%INDNAME%.sai
 cygbin\bwa samse -r "@RG\tID:ILLUMINA-%INDNAME%\tSM:%INDNAME%\tPL:illumina\tPU:ILLUMINA-%INDNAME%-PE" hs37d5.fa %INDNAME%\%INDNAME%.sai %INDNAME%\%INDNAME%.merged.fastq.gz | bin\samtools sort --no-PG -@ %THREADS% -O bam - > %INDNAME%\%INDNAME%_PE.mapped.bam
 bin\samtools index -@ %THREADS% %INDNAME%\%INDNAME%_PE.mapped.bam
 
