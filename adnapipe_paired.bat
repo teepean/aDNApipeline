@@ -98,35 +98,15 @@ bin\jre\bin\java.exe -Xmx4g -jar bin\picard\picard.jar MarkDuplicates INPUT=%IND
 bin\samtools index -@ %THREADS% %INDNAME%\%INDNAME%_rmdup.bam
 
 echo .
-echo Damage profiling
-echo .
-
-rem bin\jre\bin\java.exe -Xmx4g -jar bin\DamageProfiler-0.4.9.jar -i %INDNAME%\%INDNAME%_rmdup.bam -r hs37d5.fa -l 100 -t 15 -o . -yaxis_damageplot 0.30
-
-echo .
-echo Trimming
-echo .
-
-cygbin\bam trimBam %INDNAME%\%INDNAME%_rmdup.bam %INDNAME%\tmp.bam -L 1 -R 1 
-bin\samtools sort --no-PG -@ %THREADS% %INDNAME%\tmp.bam -o %INDNAME%\%INDNAME%.trimmed.bam 
-bin\samtools index -@ %THREADS% %INDNAME%\%INDNAME%.trimmed.bam
-
-echo .
 echo Genotyping
 echo .
 
-bin\samtools mpileup -B -q 30 -Q 30 -l v42.4.1240K.pos -f hs37d5.fa %INDNAME%\%INDNAME%.trimmed.bam | bin\pileupCaller --randomHaploid   --sampleNames %INDNAME% --samplePopName %POPNAME% -f v42.4.1240K.snp -p %INDNAME%\%INDNAME% %INDNAME%\%INDNAME%.stats.txt
+bin\samtools mpileup -B -q 30 -Q 30 -l v42.4.1240K.pos -f hs37d5.fa %INDNAME%\%INDNAME%_rmdup.bam | bin\pileupCaller --randomHaploid   --sampleNames %INDNAME% --samplePopName %POPNAME% -f v42.4.1240K.snp -p %INDNAME%\%INDNAME% %INDNAME%\%INDNAME%.stats.txt
 
 echo .
 echo Done
 echo The results are at %INDNAME% subdirectory
 echo .
-
-echo Dumping logfile to %INDNAME% subdirectory
-cd %INDNAME%
-..\bin\logdumper.exe
-ren console_buffer.txt %INDNAME%.log.txt
-cd..
 
 goto END
 :NOPARAM

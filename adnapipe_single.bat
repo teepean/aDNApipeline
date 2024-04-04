@@ -99,18 +99,12 @@ echo .
 echo Genotyping
 echo .
 
-bin\samtools mpileup -B -q 30 -Q 30 -l v42.4.1240K.pos -f hs37d5.fa %INDNAME%\%INDNAME%.trimmed.bam | bin\pileupCaller --randomHaploid   --sampleNames %INDNAME% --samplePopName %POPNAME% -f v42.4.1240K.snp -p %INDNAME%\%INDNAME%  > %INDNAME%\%INDNAME%.stats.txt 2>&1
+bin\samtools mpileup -B -q 30 -Q 30 -l v42.4.1240K.pos -f hs37d5.fa %INDNAME%\%INDNAME%_rmdup.bam | bin\pileupCaller --randomHaploid   --sampleNames %INDNAME% --samplePopName %POPNAME% -f v42.4.1240K.snp -p %INDNAME%\%INDNAME%  > %INDNAME%\%INDNAME%.stats.txt 2>&1
 
 echo .
 echo Done
 echo The results are at %INDNAME% subdirectory
 echo .
-
-echo Dumping logfile to %INDNAME% subdirectory
-cd %INDNAME%
-..\bin\logdumper.exe
-ren console_buffer.txt %INDNAME%.log.txt
-cd..
 
 goto END
 :NOPARAM
