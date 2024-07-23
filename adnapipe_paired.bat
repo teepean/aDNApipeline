@@ -77,7 +77,10 @@ echo .
 echo Preprocessing and removing adapters
 echo .
 
-bin\fastp -V -a AGATCGGAAGAGCACACGTCTGAACTCCAGTCAC --adapter_sequence_r2 AGATCGGAAGAGCGTCGTGTAGGGAAAGAGTGTA --in1 %FASTQONE% --in2 %FASTQTWO% --out1 %INDNAME%\%INDNAME%.fastp.fastq.gz --out2 %INDNAME%\%INDNAME%.fastp.fastq.gz --json %INDNAME%\%INDNAME%.fastp.json --html %INDNAME%\%INDNAME%.fastp.html -m --merged_out %INDNAME%\%INDNAME%.merged.fastq.gz --thread %THREADS% --include_unmerged --length_required 25
+cd %INDNAME%
+..\cygbin\adapterremoval3.exe --file1 %FASTQONE% --file2 %FASTQTWO% --basename %INDNAME% --gzip --threads %THREADS%  --qualitymax 41 --collapse --preserve5p --trimns --trimqualities --adapter1 AGATCGGAAGAGCACACGTCTGAACTCCAGTCAC --adapter2 AGATCGGAAGAGCGTCGTGTAGGGAAAGAGTGTA --minlength 30 --minquality 20 --minadapteroverlap 1 --merge --interleaved-output
+copy /b *.gz %INDNAME%_full.fastq.gz
+cd ..
 
 
 echo .
@@ -85,8 +88,8 @@ echo Aligning
 echo .
 
 
-bwamsvc\bwa aln -t %THREADS% hs37d5.fa %INDNAME%\%INDNAME%.merged.fastq.gz -n 0.01 -l 1024 -k 2 > %INDNAME%\%INDNAME%.sai
-cygbin\bwa samse -r "@RG\tID:ILLUMINA-%INDNAME%\tSM:%INDNAME%\tPL:illumina\tPU:ILLUMINA-%INDNAME%-PE" hs37d5.fa %INDNAME%\%INDNAME%.sai %INDNAME%\%INDNAME%.merged.fastq.gz | bin\samtools sort --no-PG -@ %THREADS% -O bam - > %INDNAME%\%INDNAME%_PE.mapped.bam
+bwamsvc\bwa aln -t %THREADS% hs37d5.fa %INDNAME%\%INDNAME%_full.fastq.gz -n 0.01 -l 1024 -k 2 > %INDNAME%\%INDNAME%.sai
+cygbin\bwa samse -r "@RG\tID:ILLUMINA-%INDNAME%\tSM:%INDNAME%\tPL:illumina\tPU:ILLUMINA-%INDNAME%-PE" hs37d5.fa %INDNAME%\%INDNAME%.sai %INDNAME%\%INDNAME%_full.fastq.gz | bin\samtools sort --no-PG -@ %THREADS% -O bam - > %INDNAME%\%INDNAME%_PE.mapped.bam
 bin\samtools index -@ %THREADS% %INDNAME%\%INDNAME%_PE.mapped.bam
 
 echo .
@@ -101,7 +104,7 @@ echo .
 echo Genotyping
 echo .
 
-bin\samtools mpileup -B -q 30 -Q 30 -l v42.4.1240K.pos -f hs37d5.fa %INDNAME%\%INDNAME%_rmdup.bam | bin\pileupCaller --randomHaploid   --sampleNames %INDNAME% --samplePopName %POPNAME% -f v42.4.1240K.snp -p %INDNAME%\%INDNAME% %INDNAME%\%INDNAME%.stats.txt
+bin\samtools mpileup -B -q 30 -Q 30 -l v42.4.1240K.pos -f hs37d5.fa %INDNAME%\%INDNAME%_rmdup.bam | bin\pileupCaller --randomHaploid   --sampleNames %INDNAME% --samplePopName %POPNAME% -f v42.4.1240K.snp -p %INDNAME%\%INDNAME% > %INDNAME%\%INDNAME%.stats.txt 2>&1
 
 echo .
 echo Done

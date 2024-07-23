@@ -1,7 +1,7 @@
 @echo off
 title Simple aDNA Pipeline
 echo.
-echo            *** Simple aDNA Pipeline for single-end fastqs***
+echo            *** Simple aDNA Pipeline for paired-end fastqs ***
 echo.
 SETLOCAL ENABLEDELAYEDEXPANSION
 if "%1"=="" goto NOPARAM
@@ -39,10 +39,11 @@ cygbin\bwa.exe index hs37d5.fa
 echo .
 )
 
-set FASTQ=%1
-set THREADS=%2
-set POPNAME=%3
-set INDNAME=%4
+set FASTQ1=%1
+set FASTQ2=%2
+set THREADS=%3
+set POPNAME=%4
+set INDNAME=%5
 
 IF EXIST "%INDNAME%" (
   echo .
@@ -59,44 +60,41 @@ IF EXIST "%INDNAME%" (
   IF ERRORLEVEL == 1 (
   rmdir /S /Q %INDNAME%
   mkdir %INDNAME%
-  ) 
+  )
 ) ELSE (
   mkdir %INDNAME%
 )
 
-
-echo .
-echo Removing adapters
-echo .
-
-IF EXIST "%CD%\%FASTQ%" (
-set FASTQ1=%CD%\%FASTQ%
+IF EXIST "%CD%\%FASTQ1%" (
+set FASTQONE=%CD%\%FASTQ1%
+set FASTQTWO=%CD%\%FASTQ2%
 ) ELSE (
-  set FASTQ1=%FASTQ%
+  set FASTQONE=%FASTQ1%
+  set FASTQTWO=%FASTQ2%
 )
 
+echo .
 echo Preprocessing and removing adapters
+echo .
+
 cd %INDNAME%
-
-..\cygbin\adapterremoval3.exe --file1 %FASTQ1% --basename %INDNAME% --gzip --threads %THREADS% --qualitymax 41 --collapse --preserve5p --trimns --trimqualities --adapter1 AGATCGGAAGAGCACACGTCTGAACTCCAGTCAC --adapter2 AGATCGGAAGAGCGTCGTGTAGGGAAAGAGTGTA --minlength 30 --minquality 25 --minadapteroverlap 1
-copy /b *.gz %INDNAME%_full.fastq.gz
-
+..\cygbin\adapterremoval3.exe --file1 %FASTQONE% --file2 %FASTQTWO% --interleaved-output --basename %INDNAME% --gzip --threads %THREADS%  --qualitymax 41 --collapse --preserve5p --trimns --trimqualities --adapter1 AGATCGGAAGAGCACACGTCTGAACTCCAGTCAC --adapter2 AGATCGGAAGAGCGTCGTGTAGGGAAAGAGTGTA --minlength 30 --minquality 20 --minadapteroverlap 1
+copy /b %INDNAME%.fastq.gz + %INDNAME%.merged.fastq.gz + %INDNAME%.singleton.fastq.gz + %INDNAME%.discarded.fastq.gz %INDNAME%.combined.pe.fastq.gz
 cd ..
-
 echo .
 echo Aligning
 echo .
 
 
-bwamsvc\bwa aln -t %THREADS% hs37d5.fa %INDNAME%\%INDNAME%_full.fastq.gz -n 0.01 -l 1024 -k 2 > %INDNAME%\%INDNAME%.sai
-cygbin\bwa samse -r "@RG\tID:ILLUMINA-%INDNAME%\tSM:%INDNAME%\tPL:illumina\tPU:ILLUMINA-%INDNAME%-SE" hs37d5.fa %INDNAME%\%INDNAME%.sai %INDNAME%\%INDNAME%_full.fastq.gz | bin\samtools sort --no-PG -@ %THREADS% -O bam - > %INDNAME%\%INDNAME%_SE.mapped.bam
-bin\samtools index -@ %THREADS% %INDNAME%\%INDNAME%_SE.mapped.bam
+bwamsvc\bwa aln -t %THREADS% hs37d5.fa %INDNAME%\%INDNAME%.merged.fastq.gz -n 0.01 -l 1024 -k 2 > %INDNAME%\%INDNAME%.sai
+cygbin\bwa samse -r "@RG\tID:ILLUMINA-%INDNAME%\tSM:%INDNAME%\tPL:illumina\tPU:ILLUMINA-%INDNAME%-PE" hs37d5.fa %INDNAME%\%INDNAME%.sai %INDNAME%\%INDNAME%.merged.fastq.gz | bin\samtools sort --no-PG -@ %THREADS% -O bam - > %INDNAME%\%INDNAME%_PE.mapped.bam
+bin\samtools index -@ %THREADS% %INDNAME%\%INDNAME%_PE.mapped.bam
 
 echo .
-echo Marking duplicates
+echo Dedupping
 echo .
 
-move %INDNAME%\%INDNAME%_SE.mapped.bam %INDNAME%\%INDNAME%.bam
+move %INDNAME%\%INDNAME%_PE.mapped.bam %INDNAME%\%INDNAME%.bam
 bin\jre\bin\java.exe -Xmx4g -jar bin\picard\picard.jar MarkDuplicates INPUT=%INDNAME%\%INDNAME%.bam OUTPUT=%INDNAME%\%INDNAME%_rmdup.bam REMOVE_DUPLICATES=TRUE AS=TRUE METRICS_FILE=%INDNAME%\%INDNAME%_rmdup.metrics VALIDATION_STRINGENCY=SILENT
 bin\samtools index -@ %THREADS% %INDNAME%\%INDNAME%_rmdup.bam
 
@@ -104,7 +102,7 @@ echo .
 echo Genotyping
 echo .
 
-bin\samtools mpileup -B -q 30 -Q 30 -l v42.4.1240K.pos -f hs37d5.fa %INDNAME%\%INDNAME%_rmdup.bam | bin\pileupCaller --randomHaploid   --sampleNames %INDNAME% --samplePopName %POPNAME% -f v42.4.1240K.snp -p %INDNAME%\%INDNAME%  > %INDNAME%\%INDNAME%.stats.txt 2>&1
+bin\samtools mpileup -B -q 30 -Q 30 -l v42.4.1240K.pos -f hs37d5.fa %INDNAME%\%INDNAME%_rmdup.bam | bin\pileupCaller --randomHaploid   --sampleNames %INDNAME% --samplePopName %POPNAME% -f v42.4.1240K.snp -p %INDNAME%\%INDNAME% > %INDNAME%\%INDNAME%.stats.txt 2>&1
 
 echo .
 echo Done
@@ -114,7 +112,7 @@ echo .
 goto END
 :NOPARAM
 echo  Syntax:
-echo     adnapipe_single ^<fastq1^> ^<threads^> ^<Population name^> ^<Individual name^>
+echo     adnapipe_paired ^<fastq 1^> ^<fastq 2^> ^<threads^> ^<Population name^> ^<Individual name^>
 echo.
 :END
 

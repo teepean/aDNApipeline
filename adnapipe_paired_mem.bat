@@ -77,16 +77,18 @@ echo
 echo Preprocessing and removing adapters
 echo
 
-bin\fastp --in1 %FASTQONE% --in2 %FASTQTWO% --out1 %INDNAME%\%INDNAME%.fastp.fastq.gz --out2 %INDNAME%\%INDNAME%.fastp.fastq.gz --json %INDNAME%\%INDNAME%.fastp.json --html %INDNAME%\%INDNAME%.fastp.html -m --merged_out %INDNAME%\%INDNAME%.merged.fastq.gz --thread 4 --detect_adapter_for_pe --include_unmerged --length_required 25
-
+cd %INDNAME%
+..\cygbin\adapterremoval3.exe --file1 %FASTQONE% --file2 %FASTQTWO% --basename %INDNAME% --gzip --threads %THREADS%  --qualitymax 41 --collapse --preserve5p --trimns --trimqualities --adapter1 AGATCGGAAGAGCACACGTCTGAACTCCAGTCAC --adapter2 AGATCGGAAGAGCGTCGTGTAGGGAAAGAGTGTA --minlength 30 --minquality 20 --minadapteroverlap 1 --merge --interleaved-output
+copy /b *.gz %INDNAME%_full.fastq.gz
+cd ..
 
 echo
-echo Aligning
+echo "Aligning"
 echo
 
-cygbin\bwa mem -p -t %THREADS% -k 19 -r 2.5 -R "@RG\tID:ILLUMINA-%INDNAME%\tSM:%INDNAME%\tPL:illumina\tPU:ILLUMINA-%INDNAME%-PE" hs37d5.fa %INDNAME%\%INDNAME%.merged.fastq.gz | bin\samtools sort --no-PG -@ %THREADS% -m2G -O bam - > %INDNAME%\%INDNAME%_PE.mapped.bam
+bin\bwa mem -t %THREADS% -R "@RG\tID:ILLUMINA-%INDNAME%\tSM:%INDNAME%\tPL:illumina\tPU:ILLUMINA-%INDNAME%-PE" hs37d5.fa %INDNAME%\%INDNAME%_full.fastq.gz | bin\samtools sort --no-PG -@ %THREADS% -m2G -O bam - > %INDNAME%\%INDNAME%_PE.mapped.bam
 bin\samtools index -@ %THREADS% %INDNAME%\%INDNAME%_PE.mapped.bam
-bin\samtools view --no-PG -b %INDNAME%\%INDNAME%_PE.mapped.bam Y > %INDNAME%\%INDNAME%_Y.bam
+bin\samtools view -@ %THREADS% --no-PG -b %INDNAME%\%INDNAME%_PE.mapped.bam Y > %INDNAME%\%INDNAME%_Y.bam
 bin\samtools index -@ %THREADS% %INDNAME%\%INDNAME%_Y.bam
 
 echo .
@@ -94,8 +96,9 @@ echo Marking duplicates
 echo .
 
 move %INDNAME%\%INDNAME%_PE.mapped.bam %INDNAME%\%INDNAME%.bam
-bin\jre\bin\java.exe -Xmx4g -jar bin\picard\picard.jar MarkDuplicates INPUT=%INDNAME%\%INDNAME%.bam OUTPUT=%INDNAME%\%INDNAME%_rmdup.bam REMOVE_DUPLICATES=TRUE AS=TRUE METRICS_FILE=%INDNAME%\%INDNAME%_rmdup.metrics VALIDATION_STRINGENCY=SILENT
+bin\jre\bin\java.exe -Xmx16g -jar bin\picard\picard.jar MarkDuplicates INPUT=%INDNAME%\%INDNAME%_SE.mapped.bam OUTPUT=%INDNAME%\%INDNAME%_rmdup.bam REMOVE_DUPLICATES=TRUE AS=TRUE METRICS_FILE=%INDNAME%\%INDNAME%_rmdup.metrics VALIDATION_STRINGENCY=SILENT MAX_RECORDS_IN_RAM=500000
 bin\samtools index -@ %THREADS% %INDNAME%\%INDNAME%_rmdup.bam
+
 echo .
 echo Genotyping
 echo .

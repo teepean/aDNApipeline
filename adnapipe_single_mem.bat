@@ -70,35 +70,39 @@ set FASTQ1=%CD%\%FASTQ%
   set FASTQ1=%FASTQ%
 )
 
-echo Preprocessing and removing adapters
-bin\fastp --in1 %FASTQ1% --out1  %INDNAME%\%INDNAME%.fastp.fastq.gz --thread 4 --length_required 25 --json %INDNAME%\%INDNAME%.fastp.json --html %INDNAME%\%INDNAME%.fastp.html
+cd %INDNAME%
 
-cygbin\bwa mem -t %THREADS% -k 19 -r 2.5 -R "@RG\tID:ILLUMINA-%INDNAME%\tSM:%INDNAME%\tPL:illumina\tPU:ILLUMINA-%INDNAME%-SE" hs37d5.fa %INDNAME%\%INDNAME%.fastp.fastq.gz | bin\samtools sort --no-PG -@ %THREADS% -m2G -O bam - > %INDNAME%\%INDNAME%_SE.mapped.bam
+..\cygbin\adapterremoval3.exe --file1 %FASTQ1% --basename %INDNAME% --gzip --threads %THREADS% --qualitymax 41 --collapse --preserve5p --trimns --trimqualities --adapter1 AGATCGGAAGAGCACACGTCTGAACTCCAGTCAC --adapter2 AGATCGGAAGAGCGTCGTGTAGGGAAAGAGTGTA --minlength 30 --minquality 25 --minadapteroverlap 1
+copy /b *.gz %INDNAME%_full.fastq.gz
+
+cd ..
+
+bin\bwa mem -t %THREADS% -R "@RG\tID:ILLUMINA-%INDNAME%\tSM:%INDNAME%\tPL:illumina\tPU:ILLUMINA-%INDNAME%-SE" hs37d5.fa %INDNAME%\%INDNAME%_full.fastq.gz | bin\samtools sort --no-PG -@ %THREADS% -m2G -O bam - > %INDNAME%\%INDNAME%_SE.mapped.bam
 bin\samtools index -@ %THREADS% %INDNAME%\%INDNAME%_SE.mapped.bam
-bin\samtools view -b %INDNAME%\%INDNAME%_SE.mapped.bam Y > %INDNAME%\%INDNAME%_Y.bam
+bin\samtools view -@ %THREADS% --no-PG -b %INDNAME%\%INDNAME%_SE.mapped.bam Y > %INDNAME%\%INDNAME%_Y.bam
 bin\samtools index -@ %THREADS% %INDNAME%\%INDNAME%_Y.bam
 
 echo .
 echo Marking duplicates
 echo .
 
-bin\jre\bin\java.exe -Xmx4g -jar bin\picard\picard.jar MarkDuplicates INPUT=%INDNAME%\%INDNAME%_SE.mapped.bam OUTPUT=%INDNAME%\%INDNAME%_rmdup.bam REMOVE_DUPLICATES=TRUE AS=TRUE METRICS_FILE=%INDNAME%\%INDNAME%_rmdup.metrics VALIDATION_STRINGENCY=SILENT
+bin\jre\bin\java.exe -Xmx16g -jar bin\picard\picard.jar MarkDuplicates INPUT=%INDNAME%\%INDNAME%_SE.mapped.bam OUTPUT=%INDNAME%\%INDNAME%_rmdup.bam REMOVE_DUPLICATES=TRUE AS=TRUE METRICS_FILE=%INDNAME%\%INDNAME%_rmdup.metrics VALIDATION_STRINGENCY=SILENT MAX_RECORDS_IN_RAM=500000
 bin\samtools index -@ %THREADS% %INDNAME%\%INDNAME%_rmdup.bam
 
 echo .
 echo Trimming
 echo .
 
-cygbin\bam trimBam %INDNAME%\%INDNAME%_rmdup.bam %INDNAME%\tmp.bam -L 1 -R 1 
-bin\samtools sort --no-PG -@ %THREADS% %INDNAME%\tmp.bam -o %INDNAME%\%INDNAME%.trimmed.bam 
-del %INDNAME%\tmp.bam
-bin\samtools index -@ %THREADS% %INDNAME%\%INDNAME%.trimmed.bam
+rem cygbin\bam trimBam %INDNAME%\%INDNAME%_rmdup.bam %INDNAME%\tmp.bam -L 1 -R 1 
+rem bin\samtools sort --no-PG -@ %THREADS% %INDNAME%\tmp.bam -o %INDNAME%\%INDNAME%.trimmed.bam 
+rem del %INDNAME%\tmp.bam
+rem bin\samtools index -@ %THREADS% %INDNAME%\%INDNAME%.trimmed.bam
 
 echo .
 echo Genotyping
 echo .
 
-bin\samtools mpileup -B -q 30 -Q 30 -l v42.4.1240K.pos -f hs37d5.fa %INDNAME%\%INDNAME%.trimmed.bam | bin\pileupCaller --randomHaploid   --sampleNames %INDNAME% --samplePopName %POPNAME% -f v42.4.1240K.snp -p %INDNAME%\%INDNAME%
+bin\samtools mpileup -B -q 30 -Q 30 -l v42.4.1240K.pos -f hs37d5.fa %INDNAME%\%INDNAME%_rmdup.bam | bin\pileupCaller --randomHaploid   --sampleNames %INDNAME% --samplePopName %POPNAME% -f v42.4.1240K.snp -p %INDNAME%\%INDNAME%
 
 echo .
 echo Done
@@ -111,3 +115,5 @@ echo  Syntax:
 echo     adnapipe_single ^<fastq1^> ^<threads^> ^<Population name^> ^<Individual name^>
 echo.
 :END
+
+
